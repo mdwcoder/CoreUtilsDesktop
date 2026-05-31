@@ -404,7 +404,7 @@ class Installer:
     def _system_dependency_installed(self, dependency: SystemDependency) -> bool:
         for check in dependency.check_commands:
             if check == "__libmpv__":
-                if self._has_libmpv():
+                if self._has_libmpv() or self._libmpv_compat_dir() is not None or self._find_libmpv_compat_source() is not None:
                     return True
                 continue
             if check == "__clipboard__":
@@ -465,6 +465,8 @@ class Installer:
     def _ensure_native_flet_dependencies(self, target: Path, emit: Callable[[str], None]) -> bool:
         if self._has_libmpv():
             return True
+        if self._prepare_libmpv_compat(emit):
+            return True
 
         commands = self._native_dependency_install_commands()
         if not commands:
@@ -482,7 +484,7 @@ class Installer:
             if not self._run(privileged, cwd=target, emit=emit):
                 return False
 
-        if not self._has_libmpv():
+        if not self._has_libmpv() and not self._prepare_libmpv_compat(emit):
             emit("La instalación terminó, pero libmpv.so.1 aún no aparece disponible.")
             return False
         return True
@@ -619,6 +621,10 @@ class Installer:
                 env["FLET_APP_STORAGE_TEMP"] = str(temp_dir)
             except OSError:
                 pass
+            lib_dir = self._libmpv_compat_dir()
+            if lib_dir is not None:
+                current = env.get("LD_LIBRARY_PATH") or os.environ.get("LD_LIBRARY_PATH", "")
+                env["LD_LIBRARY_PATH"] = f"{lib_dir}:{current}" if current else str(lib_dir)
         return env
 
     def _free_tcp_port(self) -> int | None:
@@ -688,6 +694,72 @@ class Installer:
             "/usr/lib/x86_64-linux-gnu/libmpv.so.1",
         )
         return any(Path(path).exists() for path in common_paths)
+
+    def _find_libmpv_compat_source(self) -> Path | None:
+        try:
+            result = subprocess.run(["ldconfig", "-p"], capture_output=True, text=True, timeout=10)
+        except (OSError, subprocess.TimeoutExpired):
+            result = None
+        if result is not None and result.returncode == 0:
+            for line in result.stdout.splitlines():
+                if "libmpv.so." in line and "=>" in line:
+                    candidate = Path(line.split("=>", 1)[1].strip())
+                    if candidate.exists():
+                        return candidate
+
+        for path in (
+            "/usr/lib64/libmpv.so.2",
+            "/lib64/libmpv.so.2",
+            "/usr/lib/libmpv.so.2",
+            "/usr/lib/x86_64-linux-gnu/libmpv.so.2",
+            "/lib/x86_64-linux-gnu/libmpv.so.2",
+            "/usr/local/lib/libmpv.so.2",
+            "/usr/lib64/libmpv.so",
+            "/lib64/libmpv.so",
+            "/usr/lib/libmpv.so",
+            "/usr/lib/x86_64-linux-gnu/libmpv.so",
+        ):
+            candidate = Path(path)
+            if candidate.exists():
+                return candidate
+        return None
+
+    def _libmpv_compat_dir(self) -> Path | None:
+        for directory in self._native_lib_dirs():
+            link = directory / "libmpv.so.1"
+            if link.exists():
+                return link.parent
+        return None
+
+    def _prepare_libmpv_compat(self, emit: Callable[[str], None]) -> bool:
+        source = self._find_libmpv_compat_source()
+        if source is None:
+            return False
+
+        last_error: OSError | None = None
+        for target_dir in self._native_lib_dirs():
+            target = target_dir / "libmpv.so.1"
+            try:
+                target_dir.mkdir(parents=True, exist_ok=True)
+                if target.exists() or target.is_symlink():
+                    target.unlink()
+                target.symlink_to(source)
+            except OSError as exc:
+                last_error = exc
+                continue
+
+            emit(f"Compatibilidad libmpv preparada: {target} -> {source}")
+            return True
+
+        if last_error is not None:
+            emit(f"No se pudo preparar compatibilidad libmpv local: {last_error}")
+        return False
+
+    def _native_lib_dirs(self) -> tuple[Path, ...]:
+        return (
+            APP_DIR / "runtime" / "native-libs",
+            Path("/tmp") / "core-utils-desktop" / "native-libs",
+        )
 
     def _has_python_venv(self) -> bool:
         python = shutil.which("python3") or shutil.which("python")
