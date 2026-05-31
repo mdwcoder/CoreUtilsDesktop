@@ -205,8 +205,11 @@ class Installer:
             emit(f"El proceso terminó al arrancar con código {code}.")
             tail = self._tail_lines(log_path, limit=18)
             if self._mentions_missing_libmpv(tail):
-                emit("Falta libmpv.so.1 para la ventana nativa de Flet. Se intentara abrir en modo web.")
-                emit("En Fedora suele resolverse instalando mpv-libs; en Debian/Ubuntu, libmpv2.")
+                emit("Falta libmpv.so.1 para abrir la ventana nativa de Flet.")
+                emit("No se abrirá en modo web. Instala la dependencia nativa y vuelve a iniciar.")
+                emit("Fedora: sudo dnf install mpv-libs")
+                emit("Debian/Ubuntu: sudo apt install libmpv2")
+                emit("Arch: sudo pacman -S mpv")
             for line in tail:
                 emit(line)
             if index < len(commands):
@@ -234,7 +237,34 @@ class Installer:
                 return False
 
         if python is not None and self._uses_flet(target):
+            if not self._ensure_native_flet_dependencies(target, emit):
+                return False
             return self._ensure_flet_runtime(target, python, emit)
+        return True
+
+    def _ensure_native_flet_dependencies(self, target: Path, emit: Callable[[str], None]) -> bool:
+        if self._has_libmpv():
+            return True
+
+        commands = self._native_dependency_install_commands()
+        if not commands:
+            emit("Falta libmpv.so.1 y no se encontró un gestor soportado para instalarla automaticamente.")
+            emit("Soportado: Fedora/dnf, Debian-Ubuntu/apt-get, Arch/pacman.")
+            return False
+
+        emit("Falta libmpv.so.1. Instalando dependencia nativa para ventanas Flet...")
+        for command in commands:
+            privileged = self._with_privilege(command)
+            if privileged is None:
+                emit("No se encontró pkexec, sudo ni permisos root para instalar dependencias del sistema.")
+                emit(f"Ejecuta manualmente: {' '.join(command)}")
+                return False
+            if not self._run(privileged, cwd=target, emit=emit):
+                return False
+
+        if not self._has_libmpv():
+            emit("La instalación terminó, pero libmpv.so.1 aún no aparece disponible.")
+            return False
         return True
 
     def _ensure_flet_runtime(self, target: Path, python: Path, emit: Callable[[str], None]) -> bool:
@@ -248,7 +278,7 @@ class Installer:
         # Flet apps lazy-install their CLI/desktop runtime if only the base
         # package is present. Check installed distributions, not import names,
         # because older Flet releases ship flet-desktop-light.
-        needed = ["flet-cli", "flet-web"]
+        needed = ["flet-cli"]
         if version.startswith("0.28."):
             needed.append("flet-desktop-light")
         else:
@@ -257,8 +287,9 @@ class Installer:
             return True
 
         emit(f"Preparando runtime Flet {version}...")
+        packages = [f"{package}=={version}" for package in needed]
         return self._run(
-            [str(python), "-m", "pip", "install", f"flet[all]=={version}"],
+            [str(python), "-m", "pip", "install", *packages],
             cwd=target,
             emit=emit,
         )
@@ -342,24 +373,12 @@ class Installer:
                 flet_command.extend(["-p", flet_port])
             flet_command.append("main.py")
             commands.append(flet_command)
-            if is_flet:
-                web_command = [str(flet_cli), "run", "-w"]
-                if flet_port:
-                    web_command.extend(["-p", flet_port])
-                web_command.append("main.py")
-                commands.append(web_command)
         if is_flet and flet_cli and module is not None:
             module_command = [str(flet_cli), "run", "-m"]
             if flet_port:
                 module_command.extend(["-p", flet_port])
             module_command.append(module)
             commands.append(module_command)
-
-            module_web_command = [str(flet_cli), "run", "-w", "-m"]
-            if flet_port:
-                module_web_command.extend(["-p", flet_port])
-            module_web_command.append(module)
-            commands.append(module_web_command)
 
         return commands
 
@@ -434,6 +453,39 @@ class Installer:
         except (OSError, subprocess.TimeoutExpired):
             return False
         return result.returncode == 0
+
+    def _has_libmpv(self) -> bool:
+        try:
+            result = subprocess.run(["ldconfig", "-p"], capture_output=True, text=True, timeout=10)
+        except (OSError, subprocess.TimeoutExpired):
+            result = None
+        if result is not None and result.returncode == 0 and "libmpv.so.1" in result.stdout:
+            return True
+
+        common_paths = (
+            "/usr/lib64/libmpv.so.1",
+            "/usr/lib/libmpv.so.1",
+            "/usr/lib/x86_64-linux-gnu/libmpv.so.1",
+        )
+        return any(Path(path).exists() for path in common_paths)
+
+    def _native_dependency_install_commands(self) -> list[list[str]]:
+        if shutil.which("dnf"):
+            return [["dnf", "install", "-y", "mpv-libs"]]
+        if shutil.which("apt-get"):
+            return [["apt-get", "update"], ["apt-get", "install", "-y", "libmpv2"]]
+        if shutil.which("pacman"):
+            return [["pacman", "-Sy", "--needed", "--noconfirm", "mpv"]]
+        return []
+
+    def _with_privilege(self, command: list[str]) -> list[str] | None:
+        if hasattr(os, "geteuid") and os.geteuid() == 0:
+            return command
+        if shutil.which("pkexec"):
+            return ["pkexec", *command]
+        if shutil.which("sudo"):
+            return ["sudo", *command]
+        return None
 
     def _wait_for_early_exit(self, process: subprocess.Popen[str], seconds: int) -> int | None:
         deadline = time.monotonic() + seconds
