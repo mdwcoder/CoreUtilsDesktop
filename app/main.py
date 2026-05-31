@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import shutil
+import subprocess
 import threading
 from collections import Counter
 
@@ -52,6 +54,8 @@ TRANSLATIONS = {
         "shortcut_hint": "Reinstala la entrada del menu de aplicaciones y el icono de escritorio.",
         "menu_shortcut": "Icono y menu",
         "settings_saved": "Ajustes guardados.",
+        "folder_opening": "Abriendo carpeta: {path}",
+        "folder_open_fail": "No se pudo abrir la carpeta. Ruta: {path}",
         "shortcut_start": "$ core-utils-desktop install-shortcut",
         "shortcut_ok": "Acceso directo creado.",
         "shortcut_fail": "No se pudo crear el acceso directo.",
@@ -107,6 +111,8 @@ TRANSLATIONS = {
         "shortcut_hint": "Reinstall the app-menu entry and desktop icon.",
         "menu_shortcut": "Icon and menu",
         "settings_saved": "Settings saved.",
+        "folder_opening": "Opening folder: {path}",
+        "folder_open_fail": "Could not open folder. Path: {path}",
         "shortcut_start": "$ core-utils-desktop install-shortcut",
         "shortcut_ok": "Shortcut created.",
         "shortcut_fail": "Could not create shortcut.",
@@ -766,9 +772,7 @@ class CoreUtilsDesktop:
                 ft.TextButton(self._t("close"), on_click=lambda _e: self._close_dialog(dialog)),
             ],
         )
-        self.page.dialog = dialog
-        dialog.open = True
-        self.page.update()
+        self._open_dialog(dialog)
 
     def _open_log_dialog(self, tool: Tool) -> None:
         log_path = self.installer._log_path(tool.id)
@@ -794,9 +798,7 @@ class CoreUtilsDesktop:
             ),
             actions=[ft.TextButton(self._t("close"), on_click=lambda _e: self._close_dialog(dialog))],
         )
-        self.page.dialog = dialog
-        dialog.open = True
-        self.page.update()
+        self._open_dialog(dialog)
 
     def _open_settings_dialog(self, _event: ft.ControlEvent) -> None:
         dialog = ft.AlertDialog(
@@ -887,9 +889,7 @@ class CoreUtilsDesktop:
                 ft.TextButton(self._t("close"), on_click=lambda _e: self._close_dialog(dialog)),
             ],
         )
-        self.page.dialog = dialog
-        dialog.open = True
-        self.page.update()
+        self._open_dialog(dialog)
 
     def _change_language(self, dialog: ft.AlertDialog, locale: str) -> None:
         self._save_locale(locale)
@@ -999,24 +999,79 @@ class CoreUtilsDesktop:
                 ),
             ],
         )
-        self.page.dialog = dialog
-        dialog.open = True
-        self.page.update()
+        self._open_dialog(dialog)
 
     def _close_and_uninstall(self, dialog: ft.AlertDialog, tool: Tool) -> None:
         self._close_dialog(dialog)
         self._run_action("uninstall", tool)
 
     def _close_dialog(self, dialog: ft.AlertDialog) -> None:
+        close = getattr(self.page, "close", None)
+        if callable(close):
+            try:
+                close(dialog)
+                return
+            except Exception:
+                pass
         dialog.open = False
         self.page.update()
 
+    def _open_dialog(self, dialog: ft.AlertDialog) -> None:
+        open_control = getattr(self.page, "open", None)
+        if callable(open_control):
+            try:
+                open_control(dialog)
+                return
+            except Exception:
+                pass
+        self.page.dialog = dialog
+        dialog.open = True
+        self.page.update()
+
     def _show_paths(self, _event: ft.ControlEvent) -> None:
-        self.page.snack_bar = ft.SnackBar(
-            ft.Text(f"{self._t('local_path')}: {TOOLS_DIR}", color=theme.TEXT),
+        TOOLS_DIR.mkdir(parents=True, exist_ok=True)
+        opened = self._open_folder(TOOLS_DIR)
+        message = self._t("folder_opening" if opened else "folder_open_fail", path=str(TOOLS_DIR))
+        self._show_snackbar(message)
+        self._append_log(message, accent=theme.GREEN if opened else theme.RED)
+
+    def _open_folder(self, path) -> bool:
+        command: list[str] | None = None
+        if shutil.which("xdg-open"):
+            command = ["xdg-open", str(path)]
+        elif shutil.which("gio"):
+            command = ["gio", "open", str(path)]
+        elif shutil.which("kde-open5"):
+            command = ["kde-open5", str(path)]
+        elif shutil.which("dolphin"):
+            command = ["dolphin", str(path)]
+        elif shutil.which("nautilus"):
+            command = ["nautilus", str(path)]
+        elif shutil.which("thunar"):
+            command = ["thunar", str(path)]
+
+        if command is None:
+            return False
+        try:
+            subprocess.Popen(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        except OSError:
+            return False
+        return True
+
+    def _show_snackbar(self, message: str) -> None:
+        snack_bar = ft.SnackBar(
+            ft.Text(message, color=theme.TEXT),
             bgcolor=theme.SURFACE_3,
         )
-        self.page.snack_bar.open = True
+        open_control = getattr(self.page, "open", None)
+        if callable(open_control):
+            try:
+                open_control(snack_bar)
+                return
+            except Exception:
+                pass
+        self.page.snack_bar = snack_bar
+        snack_bar.open = True
         self.page.update()
 
     def _status_summary(self) -> str:
