@@ -22,6 +22,9 @@ Use the venv Python directly after the first install if you do not want to reins
 - Loads the same installable tools used by the `core-utils` web registry.
 - Downloads repositories into `~/.core-utils-desktop/tools`.
 - Installs Python tools with `pipx install --force .` when available, falling back to the local init scripts or `pip install`.
+- Detects Python and system dependencies for each tool from `requirements.txt`, `pyproject.toml`, and known Core Utils runtime needs.
+- Installs required distro packages automatically from the desktop hub on Fedora (`dnf`), Debian/Ubuntu (`apt-get`), and Arch (`pacman`).
+- Shows each tool's dependency report from the `Dependencias` / `Dependencies` button.
 - Starts desktop apps from the hub. If a desktop app has `requirements.txt` and no `.venv`, the hub creates the venv and installs dependencies before launching it.
 - Shows local README files in an in-app Markdown info dialog.
 - Updates tools with `git pull --ff-only` in the managed local clone and then reinstalls them.

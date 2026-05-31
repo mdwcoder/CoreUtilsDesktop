@@ -7,6 +7,7 @@ import socket
 import subprocess
 import sys
 import time
+import tomllib
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
@@ -29,6 +30,25 @@ class ToolState:
     path: str = ""
     installed_at: str = ""
     last_action: str = ""
+
+
+@dataclass(frozen=True)
+class SystemDependency:
+    key: str
+    label: str
+    check_commands: tuple[str, ...]
+    fedora: tuple[str, ...]
+    debian: tuple[str, ...]
+    arch: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class DependencyReport:
+    tool: str
+    python_dependencies: tuple[str, ...]
+    system_dependencies: tuple[SystemDependency, ...]
+    missing_system_dependencies: tuple[SystemDependency, ...]
+    install_commands: tuple[tuple[str, ...], ...]
 
 
 class StateStore:
@@ -79,6 +99,8 @@ class Installer:
         self.store = store
 
     def download(self, tool: Tool, emit: Callable[[str], None]) -> bool:
+        if not self.ensure_system_dependencies(tool, emit):
+            return False
         target = self.store.local_path(tool)
         if target.exists():
             emit(f"{tool.name} ya está descargado en {target}")
@@ -92,10 +114,14 @@ class Installer:
         )
 
     def install(self, tool: Tool, emit: Callable[[str], None]) -> bool:
+        if not self.ensure_system_dependencies(tool, emit):
+            return False
         target = self.store.local_path(tool)
         if not target.exists():
             emit("Descargando antes de instalar...")
             if not self.download(tool, emit):
+                return False
+            if not self.ensure_system_dependencies(tool, emit):
                 return False
 
         command = self._local_install_command(tool, target)
@@ -108,10 +134,14 @@ class Installer:
         )
 
     def update(self, tool: Tool, emit: Callable[[str], None]) -> bool:
+        if not self.ensure_system_dependencies(tool, emit):
+            return False
         target = self.store.local_path(tool)
         if not target.exists():
             emit("La herramienta no está descargada. Descargando antes de actualizar...")
             if not self.download(tool, emit):
+                return False
+            if not self.ensure_system_dependencies(tool, emit):
                 return False
 
         if (target / ".git").exists():
@@ -156,6 +186,8 @@ class Installer:
         return ok
 
     def launch(self, tool: Tool, emit: Callable[[str], None]) -> bool:
+        if not self.ensure_system_dependencies(tool, emit):
+            return False
         target = self.resolve_tool_path(tool)
         if target is None:
             emit("No se encontró la herramienta localmente. Descárgala o instálala primero.")
@@ -217,6 +249,194 @@ class Installer:
 
         emit("No se pudo iniciar la aplicación. Revisa el log anterior.")
         return False
+
+    def dependency_report(self, tool: Tool) -> DependencyReport:
+        target = self.resolve_tool_path(tool) or self.store.local_path(tool)
+        python_dependencies = tuple(self._python_dependencies(target))
+        system_dependencies = tuple(self._system_dependencies_for(tool, target, python_dependencies))
+        missing = tuple(dep for dep in system_dependencies if not self._system_dependency_installed(dep))
+        commands = tuple(self._install_commands_for(missing))
+        return DependencyReport(
+            tool=tool.name,
+            python_dependencies=python_dependencies,
+            system_dependencies=system_dependencies,
+            missing_system_dependencies=missing,
+            install_commands=commands,
+        )
+
+    def ensure_system_dependencies(self, tool: Tool, emit: Callable[[str], None]) -> bool:
+        report = self.dependency_report(tool)
+        if not report.system_dependencies:
+            return True
+        if not report.missing_system_dependencies:
+            emit("Dependencias de sistema verificadas.")
+            return True
+        if not report.install_commands:
+            emit("Faltan dependencias de sistema, pero no se encontró un gestor soportado.")
+            for dep in report.missing_system_dependencies:
+                emit(f"- {dep.label}")
+            return False
+
+        emit("Instalando dependencias de sistema necesarias...")
+        for command in report.install_commands:
+            privileged = self._with_privilege(list(command))
+            if privileged is None:
+                emit("No se encontró pkexec, sudo ni permisos root para instalar dependencias del sistema.")
+                emit(f"Ejecuta manualmente: {' '.join(command)}")
+                return False
+            if not self._run(privileged, cwd=DESKTOP_ROOT, emit=emit):
+                return False
+
+        refreshed = self.dependency_report(tool)
+        if refreshed.missing_system_dependencies:
+            emit("La instalación terminó, pero aún faltan dependencias:")
+            for dep in refreshed.missing_system_dependencies:
+                emit(f"- {dep.label}")
+            return False
+        return True
+
+    def _python_dependencies(self, target: Path) -> list[str]:
+        deps: list[str] = []
+        requirements = target / "requirements.txt"
+        if requirements.exists():
+            for line in requirements.read_text(encoding="utf-8", errors="ignore").splitlines():
+                stripped = line.strip()
+                if stripped and not stripped.startswith("#"):
+                    deps.append(stripped)
+
+        pyproject = target / "pyproject.toml"
+        if pyproject.exists():
+            try:
+                data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
+            except (tomllib.TOMLDecodeError, OSError):
+                data = {}
+            project = data.get("project", {}) if isinstance(data, dict) else {}
+            for dep in project.get("dependencies", []) if isinstance(project, dict) else []:
+                if isinstance(dep, str):
+                    deps.append(dep)
+
+        return sorted(dict.fromkeys(deps), key=str.lower)
+
+    def _system_dependencies_for(self, tool: Tool, target: Path, python_dependencies: tuple[str, ...]) -> list[SystemDependency]:
+        deps: list[SystemDependency] = [self._dependency_catalog()["python-venv"]]
+        if self._requires_git(tool, target):
+            deps.append(self._dependency_catalog()["git"])
+        if self._uses_flet(target) or any("flet" in dep.lower() for dep in python_dependencies):
+            deps.append(self._dependency_catalog()["flet-native"])
+        if tool.id == "mmcli" or any("pyperclip" in dep.lower() for dep in python_dependencies):
+            deps.append(self._dependency_catalog()["clipboard"])
+        if tool.id == "mmcli":
+            deps.append(self._dependency_catalog()["age"])
+        if any("cryptography" in dep.lower() for dep in python_dependencies):
+            deps.append(self._dependency_catalog()["crypto-runtime"])
+        if tool.id in {"codejump", "repopulse", "workpulse", "devdrop"}:
+            deps.append(self._dependency_catalog()["xdg-utils"])
+        return list(dict.fromkeys(deps))
+
+    def _requires_git(self, tool: Tool, target: Path) -> bool:
+        if tool.repo_url.startswith("https://github.com") or "git clone" in tool.install_cmd:
+            return True
+        for path in (target / "README.md", target / "init.sh", target / "scripts" / "init.sh"):
+            if path.exists() and "git" in path.read_text(encoding="utf-8", errors="ignore").lower():
+                return True
+        return False
+
+    def _dependency_catalog(self) -> dict[str, SystemDependency]:
+        return {
+            "python-venv": SystemDependency(
+                key="python-venv",
+                label="Python 3, pip y venv",
+                check_commands=("__python_venv__",),
+                fedora=("python3", "python3-pip"),
+                debian=("python3", "python3-pip", "python3-venv"),
+                arch=("python", "python-pip"),
+            ),
+            "git": SystemDependency(
+                key="git",
+                label="Git",
+                check_commands=("git",),
+                fedora=("git",),
+                debian=("git",),
+                arch=("git",),
+            ),
+            "flet-native": SystemDependency(
+                key="flet-native",
+                label="Runtime nativo Flet (libmpv)",
+                check_commands=("__libmpv__",),
+                fedora=("mpv-libs",),
+                debian=("libmpv2",),
+                arch=("mpv",),
+            ),
+            "clipboard": SystemDependency(
+                key="clipboard",
+                label="Portapapeles Linux (xclip o wl-clipboard)",
+                check_commands=("__clipboard__",),
+                fedora=("xclip", "wl-clipboard"),
+                debian=("xclip", "wl-clipboard"),
+                arch=("xclip", "wl-clipboard"),
+            ),
+            "age": SystemDependency(
+                key="age",
+                label="age encryption CLI",
+                check_commands=("age",),
+                fedora=("age",),
+                debian=("age",),
+                arch=("age",),
+            ),
+            "crypto-runtime": SystemDependency(
+                key="crypto-runtime",
+                label="Runtime de criptografia del sistema",
+                check_commands=("openssl",),
+                fedora=("openssl", "libffi"),
+                debian=("openssl", "libffi8"),
+                arch=("openssl", "libffi"),
+            ),
+            "xdg-utils": SystemDependency(
+                key="xdg-utils",
+                label="Integracion de escritorio Linux",
+                check_commands=("xdg-open",),
+                fedora=("xdg-utils",),
+                debian=("xdg-utils",),
+                arch=("xdg-utils",),
+            ),
+        }
+
+    def _system_dependency_installed(self, dependency: SystemDependency) -> bool:
+        for check in dependency.check_commands:
+            if check == "__libmpv__":
+                if self._has_libmpv():
+                    return True
+                continue
+            if check == "__clipboard__":
+                if shutil.which("xclip") or shutil.which("wl-copy"):
+                    return True
+                continue
+            if check == "__python_venv__":
+                if self._has_python_venv():
+                    return True
+                continue
+            if shutil.which(check):
+                return True
+        return False
+
+    def _install_commands_for(self, dependencies: tuple[SystemDependency, ...]) -> list[tuple[str, ...]]:
+        packages: list[str] = []
+        if shutil.which("dnf"):
+            for dep in dependencies:
+                packages.extend(dep.fedora)
+            return [("dnf", "install", "-y", *self._unique(packages))] if packages else []
+        if shutil.which("apt-get"):
+            for dep in dependencies:
+                packages.extend(dep.debian)
+            return [("apt-get", "update"), ("apt-get", "install", "-y", *self._unique(packages))] if packages else []
+        if shutil.which("pacman"):
+            for dep in dependencies:
+                packages.extend(dep.arch)
+            return [("pacman", "-Sy", "--needed", "--noconfirm", *self._unique(packages))] if packages else []
+        return []
+
+    def _unique(self, values: list[str]) -> list[str]:
+        return list(dict.fromkeys(value for value in values if value))
 
     def _ensure_desktop_runtime(self, target: Path, emit: Callable[[str], None]) -> bool:
         requirements = target / "requirements.txt"
@@ -468,6 +688,16 @@ class Installer:
             "/usr/lib/x86_64-linux-gnu/libmpv.so.1",
         )
         return any(Path(path).exists() for path in common_paths)
+
+    def _has_python_venv(self) -> bool:
+        python = shutil.which("python3") or shutil.which("python")
+        if not python:
+            return False
+        try:
+            result = subprocess.run([python, "-m", "venv", "--help"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=10)
+        except (OSError, subprocess.TimeoutExpired):
+            return False
+        return result.returncode == 0
 
     def _native_dependency_install_commands(self) -> list[list[str]]:
         if shutil.which("dnf"):

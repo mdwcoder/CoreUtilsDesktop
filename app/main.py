@@ -36,6 +36,16 @@ TRANSLATIONS = {
         "local_path": "Ruta local",
         "launch": "Iniciar",
         "info": "Info",
+        "dependencies": "Dependencias",
+        "install_deps": "Instalar dependencias",
+        "deps_title": "Dependencias de {name}",
+        "python_deps": "Dependencias Python",
+        "system_deps": "Dependencias del sistema",
+        "missing_deps": "Faltan",
+        "no_python_deps": "No se detectaron dependencias Python declaradas.",
+        "no_system_deps": "No se detectaron dependencias de sistema adicionales.",
+        "all_system_deps_ok": "Todas las dependencias de sistema estan disponibles.",
+        "install_commands": "Comandos de instalacion",
         "log": "Log",
         "no_log": "No hay log todavia.",
         "download": "Descargar",
@@ -93,6 +103,16 @@ TRANSLATIONS = {
         "local_path": "Local path",
         "launch": "Launch",
         "info": "Info",
+        "dependencies": "Dependencies",
+        "install_deps": "Install dependencies",
+        "deps_title": "{name} dependencies",
+        "python_deps": "Python dependencies",
+        "system_deps": "System dependencies",
+        "missing_deps": "Missing",
+        "no_python_deps": "No declared Python dependencies detected.",
+        "no_system_deps": "No extra system dependencies detected.",
+        "all_system_deps_ok": "All system dependencies are available.",
+        "install_commands": "Install commands",
         "log": "Log",
         "no_log": "No log yet.",
         "download": "Download",
@@ -551,6 +571,13 @@ class CoreUtilsDesktop:
                     on_click=lambda _e: self._open_info_dialog(tool),
                 ),
                 ft.OutlinedButton(
+                    self._t("dependencies"),
+                    icon=ft.Icons.INVENTORY_2_OUTLINED,
+                    disabled=busy,
+                    style=ft.ButtonStyle(color=theme.MUTED, side=ft.BorderSide(1, theme.STROKE), shape=ft.RoundedRectangleBorder(radius=10)),
+                    on_click=lambda _e: self._open_dependencies_dialog(tool),
+                ),
+                ft.OutlinedButton(
                     self._t("log"),
                     icon=ft.Icons.DESCRIPTION_OUTLINED,
                     disabled=busy,
@@ -717,6 +744,8 @@ class CoreUtilsDesktop:
                 ok = self.installer.update(tool, self._append_log_threadsafe)
             elif action == "launch":
                 ok = self.installer.launch(tool, self._append_log_threadsafe)
+            elif action == "dependencies":
+                ok = self.installer.ensure_system_dependencies(tool, self._append_log_threadsafe)
             elif action == "uninstall":
                 ok = self.installer.uninstall(tool, self._append_log_threadsafe)
             else:
@@ -725,6 +754,79 @@ class CoreUtilsDesktop:
             self._finish_action(tool, ok)
 
         threading.Thread(target=worker, daemon=True).start()
+
+    def _open_dependencies_dialog(self, tool: Tool) -> None:
+        report = self.installer.dependency_report(tool)
+        content = self._format_dependency_report(report)
+        dialog = ft.AlertDialog(
+            modal=True,
+            bgcolor=theme.SURFACE,
+            title=ft.Row(
+                controls=[
+                    ft.Icon(ft.Icons.INVENTORY_2_OUTLINED, color=theme.TEXT, size=20),
+                    ft.Text(self._t("deps_title", name=tool.name), color=theme.TEXT, weight=ft.FontWeight.W_700),
+                ]
+            ),
+            content=ft.Container(
+                width=760,
+                height=520,
+                bgcolor="#050507",
+                border=theme.border_all(1, theme.STROKE),
+                border_radius=14,
+                padding=16,
+                content=ft.Column(
+                    expand=True,
+                    scroll=ft.ScrollMode.AUTO,
+                    controls=[
+                        ft.Text(content, color=theme.MUTED, font_family="Monospace", size=11, selectable=True),
+                    ],
+                ),
+            ),
+            actions=[
+                ft.TextButton(self._t("close"), on_click=lambda _e: self._close_dialog(dialog)),
+                ft.FilledButton(
+                    self._t("install_deps"),
+                    icon=ft.Icons.DOWNLOAD_ROUNDED,
+                    disabled=not bool(report.missing_system_dependencies),
+                    style=ft.ButtonStyle(bgcolor=theme.TEXT, color=theme.BG, shape=ft.RoundedRectangleBorder(radius=10)),
+                    on_click=lambda _e: self._close_and_install_dependencies(dialog, tool),
+                ),
+            ],
+        )
+        self._open_dialog(dialog)
+
+    def _format_dependency_report(self, report) -> str:
+        lines = [report.tool, ""]
+        lines.append(f"{self._t('python_deps')}:")
+        if report.python_dependencies:
+            lines.extend(f"  - {dep}" for dep in report.python_dependencies)
+        else:
+            lines.append(f"  {self._t('no_python_deps')}")
+
+        lines.append("")
+        lines.append(f"{self._t('system_deps')}:")
+        if report.system_dependencies:
+            missing_keys = {dep.key for dep in report.missing_system_dependencies}
+            for dep in report.system_dependencies:
+                state = self._t("missing_deps") if dep.key in missing_keys else "OK"
+                lines.append(f"  - [{state}] {dep.label}")
+        else:
+            lines.append(f"  {self._t('no_system_deps')}")
+
+        lines.append("")
+        if report.missing_system_dependencies:
+            lines.append(f"{self._t('install_commands')}:")
+            if report.install_commands:
+                lines.extend(f"  {' '.join(command)}" for command in report.install_commands)
+            else:
+                lines.append("  No disponible para esta distro.")
+        else:
+            lines.append(self._t("all_system_deps_ok"))
+        return "\n".join(lines)
+
+    def _close_and_install_dependencies(self, dialog: ft.AlertDialog, tool: Tool) -> None:
+        self._close_dialog(dialog)
+        self._run_action("dependencies", tool)
 
     def _open_info_dialog(self, tool: Tool) -> None:
         content, path = self.installer.read_readme(tool)
