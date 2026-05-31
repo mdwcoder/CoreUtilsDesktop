@@ -52,6 +52,9 @@ def configure(page: ft.Page) -> None:
     page.window.height = 820
     page.window.min_width = 980
     page.window.min_height = 680
+    page.window.full_screen = False
+    page.window.maximizable = True
+    page.window.maximized = True
     page.theme = ft.Theme(
         font_family="Sans",
         scaffold_bgcolor=BG,
