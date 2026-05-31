@@ -1108,6 +1108,13 @@ class CoreUtilsDesktop:
         self._run_action("uninstall", tool)
 
     def _close_dialog(self, dialog: ft.AlertDialog) -> None:
+        pop_dialog = getattr(self.page, "pop_dialog", None)
+        if callable(pop_dialog):
+            try:
+                pop_dialog()
+                return
+            except Exception:
+                pass
         close = getattr(self.page, "close", None)
         if callable(close):
             try:
@@ -1119,14 +1126,22 @@ class CoreUtilsDesktop:
         self.page.update()
 
     def _open_dialog(self, dialog: ft.AlertDialog) -> None:
+        show_dialog = getattr(self.page, "show_dialog", None)
+        if callable(show_dialog):
+            try:
+                show_dialog(dialog)
+                return
+            except Exception as exc:
+                self._append_log(f"No se pudo abrir el dialogo: {exc}", accent=theme.RED)
         open_control = getattr(self.page, "open", None)
         if callable(open_control):
             try:
                 open_control(dialog)
                 return
-            except Exception:
-                pass
-        self.page.dialog = dialog
+            except Exception as exc:
+                self._append_log(f"No se pudo abrir el dialogo: {exc}", accent=theme.RED)
+        if dialog not in self.page.overlay:
+            self.page.overlay.append(dialog)
         dialog.open = True
         self.page.update()
 
@@ -1172,7 +1187,8 @@ class CoreUtilsDesktop:
                 return
             except Exception:
                 pass
-        self.page.snack_bar = snack_bar
+        if snack_bar not in self.page.overlay:
+            self.page.overlay.append(snack_bar)
         snack_bar.open = True
         self.page.update()
 
