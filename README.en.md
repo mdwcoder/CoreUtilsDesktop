@@ -31,6 +31,8 @@ Use the venv Python directly after the first install if you do not want to reins
 - Shows each tool's dependency report from the `Dependencias` / `Dependencies` button.
 - Starts desktop apps from the hub. If a desktop app has `requirements.txt` and no `.venv`, the hub creates the venv and installs dependencies before launching it.
 - Shows local README files in an in-app Markdown info dialog.
+- Adds a Forge section connected to `api.core-utils.dev` for browsing tool discussions and comments.
+- Supports GitHub sign-in from the desktop app so authenticated users can comment on Forge threads.
 - Updates tools with `git pull --ff-only` in the managed local clone and then reinstalls them.
 - Uninstalls by attempting `pipx uninstall`, `pip uninstall`, and removing the managed local clone.
 - Updates Core Utils Desktop itself when the app folder is a Git repository, then reinstalls its dependencies. Restart the app after a desktop update.

@@ -32,6 +32,8 @@ Despues de la primera instalacion puedes ejecutar directamente:
 - Muestra informes de dependencias desde el boton `Dependencias` / `Dependencies`.
 - Lanza apps de escritorio desde el hub.
 - Muestra README locales en un dialogo Markdown.
+- Anade una seccion Forge conectada a `api.core-utils.dev` para ver conversaciones y comentarios de herramientas.
+- Permite iniciar sesion con GitHub desde la app de escritorio para comentar en hilos de Forge.
 - Actualiza herramientas con `git pull --ff-only` y reinstalacion.
 - Desinstala con `pipx uninstall`, `pip uninstall` y eliminacion del clon gestionado.
 - Instala lanzadores e iconos de escritorio.
