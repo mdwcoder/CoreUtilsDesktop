@@ -373,6 +373,7 @@ class CoreUtilsDesktop:
     def build(self) -> None:
         theme.configure(self.page)
         self.page.on_resize = lambda _: self._render()
+        self.header_host = ft.Container(content=self._header())
         self.page.add(self._root())
         self._render()
 
@@ -384,7 +385,7 @@ class CoreUtilsDesktop:
                 expand=True,
                 spacing=0,
                 controls=[
-                    self._header(),
+                    self.header_host,
                     self.progress,
                     self.body_host,
                     self._footer(),
@@ -537,6 +538,7 @@ class CoreUtilsDesktop:
         )
 
     def _render(self) -> None:
+        self.header_host.content = self._header()
         if self.active_view == "forge":
             self._render_forge()
         else:
@@ -635,7 +637,6 @@ class CoreUtilsDesktop:
                     run_spacing=10,
                     controls=[
                         ft.Column(
-                            expand=True,
                             spacing=4,
                             controls=[
                                 ft.Text(self._t("forge_headline"), size=24, weight=ft.FontWeight.W_800, color=theme.TEXT),
@@ -665,7 +666,7 @@ class CoreUtilsDesktop:
                             bgcolor=theme.SURFACE,
                             border_color=theme.STROKE,
                             color=theme.TEXT,
-                            on_change=self._on_forge_tool_change,
+                            on_select=self._on_forge_tool_change,
                         ),
                         ft.Dropdown(
                             width=180,
@@ -674,7 +675,7 @@ class CoreUtilsDesktop:
                             bgcolor=theme.SURFACE,
                             border_color=theme.STROKE,
                             color=theme.TEXT,
-                            on_change=self._on_forge_sort_change,
+                            on_select=self._on_forge_sort_change,
                         ),
                     ],
                 ),
