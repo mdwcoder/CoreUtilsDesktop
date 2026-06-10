@@ -1,0 +1,410 @@
+{
+  "site_settings": {
+    "title": "Core Utils",
+    "maintainer": "mdwcoder",
+    "donation_url": "https://github.com/sponsors/mdwcoder",
+    "hero_typing_sequence": [
+      "pyclit --template fastapi",
+      "context scan",
+      "qserve --public --qr",
+      "easyrealbackend init --vps",
+      "mmcli ideas \"Refactor auth to JWT\"",
+      "test-by-ai openapi.json --suite smoke",
+      "work ON \"Deep focus coding\"",
+      "core-utils-desktop"
+    ]
+  },
+  "sections": [
+    {
+      "id": "cli",
+      "title": "CLI Ecosystem",
+      "categories": [
+        {
+          "name": "Automation",
+          "tools": [
+            {
+              "id": "pyclit",
+              "repo": "mdwcoder/PythonCLITools",
+              "category": "Utility",
+              "targets": ["Automation", "Python", "Scaffolding"],
+              "marketing": {
+                "name": "PythonCLITools",
+                "tagline": "Automate your Python project lifecycle: scaffold, run, test, ship.",
+                "icon": "sparkles"
+              },
+              "install_cmd": "git clone https://github.com/mdwcoder/PythonCLITools.git && cd PythonCLITools && pipx install ."
+            },
+            {
+              "id": "autoconfigoscli",
+              "repo": "mdwcoder/AutoConfigOSCLI",
+              "category": "Utility",
+              "targets": ["Environment", "Automation", "Offline-first"],
+              "marketing": {
+                "name": "AutoConfigOSCLI",
+                "tagline": "Offline-first, reversible developer environment automation.",
+                "icon": "shield"
+              },
+              "install_cmd": "git clone https://github.com/mdwcoder/AutoConfigOSCLI.git && cd AutoConfigOSCLI && ./init.sh"
+            },
+            {
+              "id": "termkit",
+              "repo": "mdwcoder/TermKitCLI",
+              "category": "Utility",
+              "targets": ["Terminal", "Safety", "Automation"],
+              "marketing": {
+                "name": "TermKitCLI",
+                "tagline": "The reversible, safe standard for terminal automation.",
+                "icon": "undo"
+              },
+              "install_cmd": "git clone https://github.com/mdwcoder/TermKitCLI.git && cd TermKitCLI && ./init.sh"
+            },
+            {
+              "id": "pushguard",
+              "repo": "mdwcoder/pushguard",
+              "category": "Utility",
+              "targets": ["Git", "Security", "Sync"],
+              "marketing": {
+                "name": "PushGuard",
+                "tagline": "Git push with confidence: secret scanning and sync checks.",
+                "icon": "lock"
+              },
+              "install_cmd": "git clone https://github.com/mdwcoder/pushguard.git && cd pushguard && ./init.sh",
+              "seo": {
+                "title": "PushGuard — Git push safety with secret scanning and sync checks",
+                "description": "PushGuard is an open-source Git safety tool that scans for secrets before push and checks repository sync state to prevent accidental leaks.",
+                "h1": "PushGuard — Safe Git push with secret scanning",
+                "problem": "PushGuard helps developers avoid pushing secrets, credentials and unsafe changes by scanning commits before push and validating sync with the remote.",
+                "features": [
+                  "Secret scanning before git push",
+                  "Sync checks against remote branches",
+                  "Safer release and team Git workflows",
+                  "CLI-first workflow for daily development"
+                ],
+                "programmingLanguage": "Shell",
+                "applicationCategory": "DeveloperApplication",
+                "relatedToolIds": ["termkit", "repopulse", "flowshot"]
+              }
+            },
+            {
+              "id": "ai-context-cli",
+              "repo": "mdwcoder/context-tool",
+              "category": "Utility",
+              "targets": ["AI", "Context", "Repository"],
+              "marketing": {
+                "name": "ai-context-cli",
+                "tagline": "Turn any repository into reusable AI-ready context from your terminal.",
+                "icon": "search"
+              },
+              "install_cmd": "git clone https://github.com/mdwcoder/context-tool.git && cd context-tool && bash init.sh"
+            }
+          ]
+        },
+        {
+          "name": "Productivity",
+          "tools": [
+            {
+              "id": "tsk",
+              "repo": "mdwcoder/TaskShotCLI",
+              "category": "Utility",
+              "targets": ["Tasks", "Productivity", "Speed"],
+              "marketing": {
+                "name": "TaskShotCLI",
+                "tagline": "Ultra-fast micro task manager for the terminal.",
+                "icon": "checkSquare"
+              },
+              "install_cmd": "git clone https://github.com/mdwcoder/TaskShotCLI.git && cd TaskShotCLI && ./scripts/init.sh"
+            },
+            {
+              "id": "mmcli",
+              "repo": "mdwcoder/MemoryNoteCLI",
+              "category": "Utility",
+              "targets": ["Notes", "Capture", "Local-first"],
+              "marketing": {
+                "name": "MemoryNoteCLI",
+                "tagline": "Capture thoughts and snippets instantly, local-first, beautiful UI.",
+                "icon": "notebook"
+              },
+              "install_cmd": "git clone https://github.com/mdwcoder/MemoryNoteCLI.git && cd MemoryNoteCLI && ./init.sh",
+              "seo": {
+                "title": "MemoryNoteCLI — Local-first CLI notes and snippet capture",
+                "description": "MemoryNoteCLI is an open-source local-first CLI for capturing ideas, snippets and notes instantly with a polished terminal UI.",
+                "h1": "MemoryNoteCLI — Local-first notes from your terminal",
+                "problem": "MemoryNoteCLI helps developers capture ideas, snippets and quick notes without leaving the terminal, keeping everything local-first and easy to revisit.",
+                "features": [
+                  "Instant note and snippet capture from CLI",
+                  "Local-first storage for privacy",
+                  "Polished terminal UI for daily use",
+                  "Fast retrieval of ideas and fragments"
+                ],
+                "programmingLanguage": "Python",
+                "applicationCategory": "ProductivityApplication",
+                "relatedToolIds": ["tsk", "work", "flowshot"]
+              }
+            },
+            {
+              "id": "work",
+              "repo": "mdwcoder/Work-CLI",
+              "category": "Utility",
+              "targets": ["Focus", "Time Tracking", "Privacy"],
+              "marketing": {
+                "name": "Work-CLI",
+                "tagline": "Privacy-first terminal time tracker with exports and advanced features.",
+                "icon": "timer"
+              },
+              "install_cmd": "git clone https://github.com/mdwcoder/Work-CLI.git && cd Work-CLI && chmod +x init.sh && ./init.sh"
+            },
+            {
+              "id": "flowshot",
+              "repo": "mdwcoder/FlowShotCLI",
+              "category": "Utility",
+              "targets": ["Workflow", "Capture", "Sharing"],
+              "marketing": {
+                "name": "FlowShotCLI",
+                "tagline": "Capture, replay, and share your terminal workflows.",
+                "icon": "clapperboard"
+              },
+              "install_cmd": "git clone https://github.com/mdwcoder/FlowShotCLI.git && cd FlowShotCLI && pip install ."
+            }
+          ]
+        },
+        {
+          "name": "Network & Testing",
+          "tools": [
+            {
+              "id": "easyrealbackend",
+              "repo": "mdwcoder/EasyRealBackend",
+              "category": "Network",
+              "targets": ["FastAPI", "VPS", "Security"],
+              "marketing": {
+                "name": "EasyRealBackend",
+                "tagline": "FastAPI backend starter for VPS deployments with auth, RBAC, generated CRUD, and secure defaults.",
+                "icon": "server"
+              },
+              "install_cmd": "git clone https://github.com/mdwcoder/EasyRealBackend.git && cd EasyRealBackend && chmod +x init.sh scripts/*.sh && ./init.sh",
+              "seo": {
+                "title": "EasyRealBackend — Python backend starter with auth, roles and automatic CRUD",
+                "description": "EasyRealBackend is an open-source Python backend starter for VPS deployments, with user management, roles, permissions, security defaults and automatic CRUD endpoints.",
+                "h1": "EasyRealBackend — Python backend starter for secure VPS projects",
+                "problem": "EasyRealBackend helps developers launch secure Python backends faster by providing user management, authentication, role-based permissions, groups and automatic CRUD endpoints for custom tables.",
+                "features": [
+                  "FastAPI backend starter for VPS deployments",
+                  "User management with authentication",
+                  "Role-based access control and permissions",
+                  "Automatic CRUD endpoints for custom tables",
+                  "Secure defaults for production backends"
+                ],
+                "programmingLanguage": "Python",
+                "applicationCategory": "DeveloperApplication",
+                "relatedToolIds": ["qserve", "test-by-ai", "pyclit"]
+              }
+            },
+            {
+              "id": "qserve",
+              "repo": "mdwcoder/QuickServeCLI",
+              "category": "Network",
+              "targets": ["HTTP", "Server", "Speed"],
+              "marketing": {
+                "name": "QuickServeCLI",
+                "tagline": "Instant zero-conf HTTP server for your terminal.",
+                "icon": "globe"
+              },
+              "install_cmd": "git clone https://github.com/mdwcoder/QuickServeCLI.git && cd QuickServeCLI && ./scripts/init.sh"
+            },
+            {
+              "id": "test-by-ai",
+              "repo": "mdwcoder/Test-By-AI",
+              "category": "Network",
+              "targets": ["API", "Testing", "OpenAPI"],
+              "marketing": {
+                "name": "Test-By-AI",
+                "tagline": "Automated REST API testing from OpenAPI specs, optional AI insights.",
+                "icon": "flaskConical"
+              },
+              "install_cmd": "git clone https://github.com/mdwcoder/Test-By-AI.git && cd Test-By-AI && ./init.sh"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "desktop",
+      "title": "Desktop Apps",
+      "categories": [
+        {
+          "name": "Repository Intelligence",
+          "tools": [
+            {
+              "id": "codejump",
+              "repo": "mdwcoder/CodeJump",
+              "category": "Desktop",
+              "targets": ["Code Navigation", "Desktop", "Large Repos"],
+              "marketing": {
+                "name": "CodeJump",
+                "tagline": "Intent-driven desktop code navigation for large projects.",
+                "icon": "search"
+              },
+              "install_cmd": "git clone https://github.com/mdwcoder/CodeJump.git && cd CodeJump && bash init.sh"
+            },
+            {
+              "id": "repopulse",
+              "repo": "mdwcoder/RepoPulse",
+              "category": "Desktop",
+              "targets": ["Repo Health", "Git", "Desktop"],
+              "marketing": {
+                "name": "RepoPulse",
+                "tagline": "Desktop repo health scanner for hotspots, Git state, and ignore hygiene.",
+                "icon": "search"
+              },
+              "install_cmd": "git clone https://github.com/mdwcoder/RepoPulse.git && cd RepoPulse && ./init.sh",
+              "seo": {
+                "title": "RepoPulse — Desktop repository health scanner for developers",
+                "description": "RepoPulse is an open-source desktop app that scans repository health, Git state, hotspots and ignore hygiene to help teams understand codebase risks.",
+                "h1": "RepoPulse — Desktop repo health and Git hygiene scanner",
+                "problem": "RepoPulse helps developers and teams spot repository hotspots, Git inconsistencies and ignore-file hygiene issues before they become expensive maintenance problems.",
+                "features": [
+                  "Desktop repository health scanning",
+                  "Hotspot detection across large codebases",
+                  "Git state visibility and hygiene checks",
+                  "Ignore-file cleanup insights"
+                ],
+                "programmingLanguage": "TypeScript",
+                "applicationCategory": "DeveloperApplication",
+                "operatingSystem": "Windows, macOS, Linux",
+                "relatedToolIds": ["codejump", "pushguard", "workpulse"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Workflow Coordination",
+          "tools": [
+            {
+              "id": "workpulse",
+              "repo": "mdwcoder/WorkPulse",
+              "category": "Desktop",
+              "targets": ["Coordination", "Focus", "Git Sync"],
+              "marketing": {
+                "name": "WorkPulse",
+                "tagline": "Local-first desktop coordination for tasks, focus time, and Git-backed team sync.",
+                "icon": "timer"
+              },
+              "install_cmd": "git clone https://github.com/mdwcoder/WorkPulse.git && cd WorkPulse && ./init.sh"
+            }
+          ]
+        },
+        {
+          "name": "Desktop Hub",
+          "tools": [
+            {
+              "id": "core-utils-desktop",
+              "repo": "mdwcoder/CoreUtilsDesktop",
+              "category": "Desktop",
+              "targets": ["Hub", "Installer", "Desktop"],
+              "marketing": {
+                "name": "Core Utils Desktop",
+                "tagline": "Install, update, uninstall, and launch Core Utils tools from a local hub with a desktop icon and app-menu integration.",
+                "icon": "monitorDown"
+              },
+              "install_cmd": "git clone https://github.com/mdwcoder/CoreUtilsDesktop.git && cd CoreUtilsDesktop && ./init.sh",
+              "seo": {
+                "title": "Core Utils Desktop — Local hub to install and manage developer tools",
+                "description": "Core Utils Desktop is an open-source local hub to install, update, uninstall and launch Core Utils CLI and desktop tools from one desktop app.",
+                "h1": "Core Utils Desktop — Local hub for Core Utils tools",
+                "problem": "Core Utils Desktop helps developers manage the full Core Utils toolbox from a single desktop hub with installs, updates, shortcuts and app-menu integration.",
+                "features": [
+                  "Install and update Core Utils tools from one hub",
+                  "Desktop icon and app-menu integration",
+                  "Uninstall and launch tools locally",
+                  "Settings and bilingual EN / ES support"
+                ],
+                "applicationCategory": "DeveloperApplication",
+                "operatingSystem": "Windows, macOS, Linux",
+                "relatedToolIds": ["pyclit", "repopulse", "easyrealbackend"]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Secure Exchange",
+          "tools": [
+            {
+              "id": "devdrop",
+              "repo": "mdwcoder/DevDrop",
+              "category": "Desktop",
+              "targets": ["Security", "Encryption", "Desktop"],
+              "marketing": {
+                "name": "DevDrop",
+                "tagline": "Secure desktop secret exchange with end-to-end encryption and zero backend.",
+                "icon": "shield"
+              },
+              "install_cmd": "git clone https://github.com/mdwcoder/DevDrop.git && cd DevDrop && ./init.sh"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "online-tools",
+      "title": "Online Tools",
+      "categories": [
+        {
+          "name": "Browser Utilities",
+          "tools": [
+            {
+              "id": "json-cleaner",
+              "category": "Online",
+              "targets": ["JSON", "Repair", "Validation"],
+              "tool_type": "online",
+              "build_kit_eligible": false,
+              "online_tool_kind": "json-cleaner",
+              "marketing": {
+                "name": "JSON Cleaner / Fixer",
+                "tagline": "Repair broken JSON, format it cleanly, and surface readable validation errors.",
+                "icon": "command"
+              }
+            },
+            {
+              "id": "text-compare",
+              "category": "Online",
+              "targets": ["Diff", "Text", "Files"],
+              "tool_type": "online",
+              "build_kit_eligible": false,
+              "online_tool_kind": "text-compare",
+              "marketing": {
+                "name": "Text Compare",
+                "tagline": "Compare pasted text or dropped files side by side with a fast visual diff.",
+                "icon": "copy"
+              }
+            },
+            {
+              "id": "time-converter",
+              "category": "Online",
+              "targets": ["Time", "Timestamp", "Conversion"],
+              "tool_type": "online",
+              "build_kit_eligible": false,
+              "online_tool_kind": "time-converter",
+              "marketing": {
+                "name": "Time Converter",
+                "tagline": "Convert timestamps, dates, and ISO strings into UTC, local, and readable formats.",
+                "icon": "clock"
+              }
+            },
+            {
+              "id": "langcode",
+              "category": "Online",
+              "targets": ["Python", "Translator", "Deterministic"],
+              "tool_type": "online",
+              "build_kit_eligible": false,
+              "online_tool_kind": "langcode",
+              "marketing": {
+                "name": "LangCode",
+                "tagline": "Translate deterministic English or Spanish scripting into curated Python code.",
+                "icon": "terminal"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
