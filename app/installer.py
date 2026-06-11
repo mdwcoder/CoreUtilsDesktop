@@ -23,6 +23,13 @@ LOGS_DIR = APP_DIR / "logs"
 DESKTOP_ROOT = Path(__file__).resolve().parents[1]
 PROJECTS_ROOT = DESKTOP_ROOT.parent
 
+# Tools distributed as precompiled binaries (GitHub Releases) instead of
+# being cloned and built/installed from source. Maps tool id -> binary name
+# installed under ~/.local/bin.
+BINARY_TOOLS: dict[str, str] = {
+    "core-utils-cli": "cu",
+}
+
 
 @dataclass
 class ToolState:
@@ -78,7 +85,7 @@ class StateStore:
             last_action=raw.get("last_action", ""),
         )
         if self.local_path(tool).exists() and state.status == "available":
-            state.status = "downloaded"
+            state.status = "installed" if tool.id in BINARY_TOOLS else "downloaded"
         return state
 
     def set(self, tool: Tool, state: ToolState) -> None:
@@ -91,6 +98,8 @@ class StateStore:
         self.save()
 
     def local_path(self, tool: Tool) -> Path:
+        if tool.id in BINARY_TOOLS:
+            return Path.home() / ".local" / "bin" / BINARY_TOOLS[tool.id]
         return TOOLS_DIR / tool.repo_name
 
 
@@ -99,6 +108,8 @@ class Installer:
         self.store = store
 
     def download(self, tool: Tool, emit: Callable[[str], None]) -> bool:
+        if tool.id in BINARY_TOOLS:
+            return self._install_binary_tool(tool, emit, action="installed")
         if not self.ensure_system_dependencies(tool, emit):
             return False
         target = self.store.local_path(tool)
@@ -114,6 +125,8 @@ class Installer:
         )
 
     def install(self, tool: Tool, emit: Callable[[str], None]) -> bool:
+        if tool.id in BINARY_TOOLS:
+            return self._install_binary_tool(tool, emit, action="installed")
         if not self.ensure_system_dependencies(tool, emit):
             return False
         target = self.store.local_path(tool)
@@ -134,6 +147,8 @@ class Installer:
         )
 
     def update(self, tool: Tool, emit: Callable[[str], None]) -> bool:
+        if tool.id in BINARY_TOOLS:
+            return self._install_binary_tool(tool, emit, action="updated")
         if not self.ensure_system_dependencies(tool, emit):
             return False
         target = self.store.local_path(tool)
@@ -251,6 +266,14 @@ class Installer:
         return False
 
     def dependency_report(self, tool: Tool) -> DependencyReport:
+        if tool.id in BINARY_TOOLS:
+            return DependencyReport(
+                tool=tool.name,
+                python_dependencies=(),
+                system_dependencies=(),
+                missing_system_dependencies=(),
+                install_commands=(),
+            )
         target = self.resolve_tool_path(tool) or self.store.local_path(tool)
         python_dependencies = tuple(self._python_dependencies(target))
         system_dependencies = tuple(self._system_dependencies_for(tool, target, python_dependencies))
@@ -265,6 +288,8 @@ class Installer:
         )
 
     def ensure_system_dependencies(self, tool: Tool, emit: Callable[[str], None]) -> bool:
+        if tool.id in BINARY_TOOLS:
+            return True
         report = self.dependency_report(tool)
         if not report.system_dependencies:
             return True
@@ -517,6 +542,12 @@ class Installer:
         )
 
     def read_readme(self, tool: Tool) -> tuple[str, Path | None]:
+        if tool.id in BINARY_TOOLS:
+            return (
+                f"{tool.name} se distribuye como binario precompilado y no se descarga como "
+                f"código fuente.\n\nConsulta el README en {tool.repo_url.removesuffix('.git')}",
+                None,
+            )
         target = self.resolve_tool_path(tool)
         if target is None:
             return (
@@ -533,12 +564,39 @@ class Installer:
         managed = self.store.local_path(tool)
         if managed.exists():
             return managed
+        if tool.id in BINARY_TOOLS:
+            return None
         local = PROJECTS_ROOT / tool.repo_name
         if local.exists():
             return local
         return None
 
+    def _install_binary_tool(self, tool: Tool, emit: Callable[[str], None], action: str) -> bool:
+        target = self.store.local_path(tool)
+        emit(f"{tool.name} se distribuye como binario precompilado (GitHub Releases).")
+        emit(f"Ejecutando: {tool.install_cmd}")
+        return self._run(
+            ["bash", "-lc", tool.install_cmd],
+            cwd=TOOLS_DIR,
+            emit=emit,
+            success=lambda: self._mark(tool, "installed", action, path=str(target)),
+        )
+
     def uninstall(self, tool: Tool, emit: Callable[[str], None]) -> bool:
+        if tool.id in BINARY_TOOLS:
+            target = self.store.local_path(tool)
+            if target.exists():
+                emit(f"Eliminando binario: {target}")
+                try:
+                    target.unlink()
+                except OSError as exc:
+                    emit(f"No se pudo eliminar {target}: {exc}")
+                    return False
+            else:
+                emit(f"{tool.name} no estaba instalado en {target}")
+            self._mark(tool, "available", "uninstalled", path="")
+            return True
+
         target = self.store.local_path(tool)
         package = self._package_name(target) or tool.id
         ok = True
