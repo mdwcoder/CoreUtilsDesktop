@@ -698,15 +698,21 @@ class Installer:
         return ok
 
     def _local_install_command(self, tool: Tool, target: Path) -> list[str]:
-        if shutil.which("pipx") and (target / "pyproject.toml").exists():
-            return ["pipx", "install", "--force", "."]
         if sys.platform == "win32":
             ps1 = target / "init.ps1"
             scripts_ps1 = target / "scripts" / "init.ps1"
+            bat = target / "init.bat"
+            scripts_bat = target / "scripts" / "init.bat"
             if ps1.exists():
                 return ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(ps1)]
             if scripts_ps1.exists():
                 return ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(scripts_ps1)]
+            if bat.exists():
+                return ["cmd", "/c", str(bat)]
+            if scripts_bat.exists():
+                return ["cmd", "/c", str(scripts_bat)]
+        if shutil.which("pipx") and (target / "pyproject.toml").exists():
+            return ["pipx", "install", "--force", "."]
         if (target / "init.sh").exists():
             shell = shutil.which("bash") or shutil.which("sh")
             return [shell, "init.sh"] if shell else [sys.executable, "-m", "pip", "install", "."]
