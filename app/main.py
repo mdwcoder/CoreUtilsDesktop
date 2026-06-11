@@ -19,6 +19,7 @@ from app import theme
 SETTINGS_PATH = APP_DIR / "settings.json"
 ROOT_DIR = Path(__file__).resolve().parents[1]
 SITE_BASE_URL = "https://www.core-utils.dev"
+WEB_AUTH_STORAGE_SLUG = "core-utils-web"
 
 WEB_SECTIONS: list[tuple[str, str, str, str]] = [
     # (slug, path, label_key, icon)
@@ -378,13 +379,13 @@ class CoreUtilsDesktop:
             ),
         )
 
-    def _open_web_section(self, slug: str, path: str, label_key: str) -> None:
+    def _open_web_section(self, _slug: str, path: str, label_key: str) -> None:
         name = self._t(label_key)
         url = f"{SITE_BASE_URL}{path}"
         self._append_log(self._t("web_open_start", name=name), accent=theme.BLUE)
         try:
             subprocess.Popen(
-                [sys.executable, "-m", "app.webview_window", name, url, slug],
+                [sys.executable, "-m", "app.webview_window", name, url, WEB_AUTH_STORAGE_SLUG],
                 cwd=str(ROOT_DIR),
                 start_new_session=True,
             )
