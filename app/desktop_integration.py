@@ -13,7 +13,24 @@ from typing import Callable
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ASSET_ICON = PROJECT_ROOT / "assets" / "icon.png"
-APP_HOME = Path.home() / ".core-utils-desktop"
+APP_NAME = "Core Utils Desktop"
+
+
+def _app_home() -> Path:
+    override = os.getenv("CORE_UTILS_DESKTOP_HOME")
+    if override:
+        return Path(override).expanduser()
+    system = platform.system()
+    if system == "Windows":
+        base = os.getenv("LOCALAPPDATA") or os.getenv("APPDATA")
+        return Path(base) / APP_NAME if base else Path.home() / "AppData" / "Local" / APP_NAME
+    if system == "Darwin":
+        return Path.home() / "Library" / "Application Support" / APP_NAME
+    xdg_data = os.getenv("XDG_DATA_HOME")
+    return Path(xdg_data) / "core-utils-desktop" if xdg_data else Path.home() / ".core-utils-desktop"
+
+
+APP_HOME = _app_home()
 LAUNCHER_SCRIPT = APP_HOME / "core-utils-desktop.sh"
 APP_ID = "core-utils-desktop"
 ICON_NAME = APP_ID

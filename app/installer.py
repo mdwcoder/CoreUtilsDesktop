@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import os
+import platform
+import urllib.request
 import shutil
 import socket
 import subprocess
@@ -16,7 +18,32 @@ from typing import Callable
 from app.catalog import Tool
 
 
-APP_DIR = Path.home() / ".core-utils-desktop"
+APP_NAME = "Core Utils Desktop"
+
+
+def _default_app_dir() -> Path:
+    override = os.getenv("CORE_UTILS_DESKTOP_HOME")
+    if override:
+        return Path(override).expanduser()
+    if sys.platform == "win32":
+        base = os.getenv("LOCALAPPDATA") or os.getenv("APPDATA")
+        return Path(base) / APP_NAME if base else Path.home() / "AppData" / "Local" / APP_NAME
+    if platform.system() == "Darwin":
+        return Path.home() / "Library" / "Application Support" / APP_NAME
+    xdg_data = os.getenv("XDG_DATA_HOME")
+    return Path(xdg_data) / "core-utils-desktop" if xdg_data else Path.home() / ".core-utils-desktop"
+
+
+def _user_bin_dir() -> Path:
+    override = os.getenv("CORE_UTILS_BIN_DIR")
+    if override:
+        return Path(override).expanduser()
+    if sys.platform == "win32":
+        return _default_app_dir() / "bin"
+    return Path.home() / ".local" / "bin"
+
+
+APP_DIR = _default_app_dir()
 TOOLS_DIR = APP_DIR / "tools"
 STATE_PATH = APP_DIR / "state.json"
 LOGS_DIR = APP_DIR / "logs"
@@ -99,7 +126,10 @@ class StateStore:
 
     def local_path(self, tool: Tool) -> Path:
         if tool.id in BINARY_TOOLS:
-            return Path.home() / ".local" / "bin" / BINARY_TOOLS[tool.id]
+            binary = BINARY_TOOLS[tool.id]
+            if sys.platform == "win32" and not binary.endswith(".exe"):
+                binary = f"{binary}.exe"
+            return _user_bin_dir() / binary
         return TOOLS_DIR / tool.repo_name
 
 
@@ -346,15 +376,15 @@ class Installer:
         deps: list[SystemDependency] = [self._dependency_catalog()["python-venv"]]
         if self._requires_git(tool, target):
             deps.append(self._dependency_catalog()["git"])
-        if self._uses_flet(target) or any("flet" in dep.lower() for dep in python_dependencies):
+        if sys.platform.startswith("linux") and (self._uses_flet(target) or any("flet" in dep.lower() for dep in python_dependencies)):
             deps.append(self._dependency_catalog()["flet-native"])
-        if tool.id == "mmcli" or any("pyperclip" in dep.lower() for dep in python_dependencies):
+        if sys.platform.startswith("linux") and (tool.id == "mmcli" or any("pyperclip" in dep.lower() for dep in python_dependencies)):
             deps.append(self._dependency_catalog()["clipboard"])
         if tool.id == "mmcli":
             deps.append(self._dependency_catalog()["age"])
         if any("cryptography" in dep.lower() for dep in python_dependencies):
             deps.append(self._dependency_catalog()["crypto-runtime"])
-        if tool.id in {"codejump", "repopulse", "workpulse", "devdrop"}:
+        if sys.platform.startswith("linux") and tool.id in {"codejump", "repopulse", "workpulse", "devdrop"}:
             deps.append(self._dependency_catalog()["xdg-utils"])
         return list(dict.fromkeys(deps))
 
@@ -445,6 +475,31 @@ class Installer:
         return False
 
     def _install_commands_for(self, dependencies: tuple[SystemDependency, ...]) -> list[tuple[str, ...]]:
+        if sys.platform == "darwin" and shutil.which("brew"):
+            packages: list[str] = []
+            for dep in dependencies:
+                if dep.key == "python-venv":
+                    packages.extend(("python",))
+                elif dep.key == "git":
+                    packages.extend(("git",))
+                elif dep.key == "age":
+                    packages.extend(("age",))
+                elif dep.key == "crypto-runtime":
+                    packages.extend(("openssl", "libffi"))
+            return [("brew", "install", *self._unique(packages))] if packages else []
+        if sys.platform == "win32" and shutil.which("winget"):
+            packages = []
+            for dep in dependencies:
+                if dep.key == "python-venv":
+                    packages.append("Python.Python.3")
+                elif dep.key == "git":
+                    packages.append("Git.Git")
+                elif dep.key == "age":
+                    packages.append("FiloSottile.age")
+            return [
+                ("winget", "install", "--id", package, "--exact", "--accept-package-agreements", "--accept-source-agreements")
+                for package in self._unique(packages)
+            ]
         packages: list[str] = []
         if shutil.which("dnf"):
             for dep in dependencies:
@@ -574,13 +629,35 @@ class Installer:
     def _install_binary_tool(self, tool: Tool, emit: Callable[[str], None], action: str) -> bool:
         target = self.store.local_path(tool)
         emit(f"{tool.name} se distribuye como binario precompilado (GitHub Releases).")
+        if tool.id == "core-utils-cli" and sys.platform == "win32":
+            return self._install_core_utils_cli_windows(tool, target, emit, action)
+
+        shell = shutil.which("bash") or shutil.which("sh")
+        if shell is None:
+            emit("No se encontro un shell POSIX para ejecutar el instalador publicado.")
+            emit("En Windows, descarga el binario .exe desde GitHub Releases o instala con winget cuando este disponible.")
+            return False
+
         emit(f"Ejecutando: {tool.install_cmd}")
         return self._run(
-            ["bash", "-lc", tool.install_cmd],
+            [shell, "-lc", tool.install_cmd],
             cwd=TOOLS_DIR,
             emit=emit,
             success=lambda: self._mark(tool, "installed", action, path=str(target)),
         )
+
+    def _install_core_utils_cli_windows(self, tool: Tool, target: Path, emit: Callable[[str], None], action: str) -> bool:
+        url = "https://github.com/mdwcoder/core-utils-cli/releases/latest/download/cu-windows-amd64.exe"
+        target.parent.mkdir(parents=True, exist_ok=True)
+        emit(f"Descargando binario Windows: {url}")
+        try:
+            urllib.request.urlretrieve(url, target)
+        except Exception as exc:
+            emit(f"No se pudo descargar el binario: {exc}")
+            return False
+        self._mark(tool, "installed", action, path=str(target))
+        emit(f"Instalado: {target}")
+        return True
 
     def uninstall(self, tool: Tool, emit: Callable[[str], None]) -> bool:
         if tool.id in BINARY_TOOLS:
@@ -623,15 +700,25 @@ class Installer:
     def _local_install_command(self, tool: Tool, target: Path) -> list[str]:
         if shutil.which("pipx") and (target / "pyproject.toml").exists():
             return ["pipx", "install", "--force", "."]
+        if sys.platform == "win32":
+            ps1 = target / "init.ps1"
+            scripts_ps1 = target / "scripts" / "init.ps1"
+            if ps1.exists():
+                return ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(ps1)]
+            if scripts_ps1.exists():
+                return ["powershell", "-ExecutionPolicy", "Bypass", "-File", str(scripts_ps1)]
         if (target / "init.sh").exists():
-            return ["bash", "init.sh"]
+            shell = shutil.which("bash") or shutil.which("sh")
+            return [shell, "init.sh"] if shell else [sys.executable, "-m", "pip", "install", "."]
         if (target / "scripts" / "init.sh").exists():
-            return ["bash", "scripts/init.sh"]
+            shell = shutil.which("bash") or shutil.which("sh")
+            return [shell, "scripts/init.sh"] if shell else [sys.executable, "-m", "pip", "install", "."]
         if (target / "pyproject.toml").exists():
             return [sys.executable, "-m", "pip", "install", "."]
         if (target / "requirements.txt").exists():
             return [sys.executable, "-m", "pip", "install", "-r", "requirements.txt"]
-        return ["bash", "-lc", tool.install_cmd]
+        shell = shutil.which("bash") or shutil.which("sh")
+        return [shell, "-lc", tool.install_cmd] if shell else [sys.executable, "-m", "pip", "install", "."]
 
     def _launch_commands(self, target: Path, flet_port: str | None = None) -> list[list[str]]:
         python = self._venv_python(target) or Path(sys.executable)
@@ -739,6 +826,8 @@ class Installer:
         return result.returncode == 0
 
     def _has_libmpv(self) -> bool:
+        if not sys.platform.startswith("linux"):
+            return True
         try:
             result = subprocess.run(["ldconfig", "-p"], capture_output=True, text=True, timeout=10)
         except (OSError, subprocess.TimeoutExpired):
@@ -754,6 +843,8 @@ class Installer:
         return any(Path(path).exists() for path in common_paths)
 
     def _find_libmpv_compat_source(self) -> Path | None:
+        if not sys.platform.startswith("linux"):
+            return None
         try:
             result = subprocess.run(["ldconfig", "-p"], capture_output=True, text=True, timeout=10)
         except (OSError, subprocess.TimeoutExpired):
@@ -816,7 +907,7 @@ class Installer:
     def _native_lib_dirs(self) -> tuple[Path, ...]:
         return (
             APP_DIR / "runtime" / "native-libs",
-            Path("/tmp") / "core-utils-desktop" / "native-libs",
+            Path(tempfile.gettempdir()) / "core-utils-desktop" / "native-libs",
         )
 
     def _has_python_venv(self) -> bool:
@@ -830,6 +921,8 @@ class Installer:
         return result.returncode == 0
 
     def _native_dependency_install_commands(self) -> list[list[str]]:
+        if not sys.platform.startswith("linux"):
+            return []
         if shutil.which("dnf"):
             return [["dnf", "install", "-y", "mpv-libs"]]
         if shutil.which("apt-get"):
@@ -839,6 +932,8 @@ class Installer:
         return []
 
     def _with_privilege(self, command: list[str]) -> list[str] | None:
+        if sys.platform in {"win32", "darwin"}:
+            return command
         if hasattr(os, "geteuid") and os.geteuid() == 0:
             return command
         if shutil.which("pkexec"):
@@ -867,7 +962,7 @@ class Installer:
         return "libmpv.so.1" in text and "cannot open shared object file" in text
 
     def _log_path(self, tool_id: str) -> Path:
-        for directory in (LOGS_DIR, Path("/tmp") / "core-utils-desktop-logs"):
+        for directory in (LOGS_DIR, Path(tempfile.gettempdir()) / "core-utils-desktop-logs"):
             try:
                 directory.mkdir(parents=True, exist_ok=True)
                 return directory / f"{tool_id}.log"

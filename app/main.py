@@ -1237,7 +1237,15 @@ class CoreUtilsDesktop:
 
     def _open_folder(self, path) -> bool:
         command: list[str] | None = None
-        if shutil.which("xdg-open"):
+        if sys.platform == "win32":
+            try:
+                os.startfile(str(path))  # type: ignore[attr-defined]
+                return True
+            except OSError:
+                command = ["explorer", str(path)]
+        elif sys.platform == "darwin":
+            command = ["open", str(path)]
+        elif shutil.which("xdg-open"):
             command = ["xdg-open", str(path)]
         elif shutil.which("gio"):
             command = ["gio", "open", str(path)]
